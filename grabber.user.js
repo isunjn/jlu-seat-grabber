@@ -2,7 +2,7 @@
 // @name        JLU Seat Grabber
 // @namespace   jlu-scripting
 // @match       http://libzwyy.jlu.edu.cn/*
-// @version     0.3
+// @version     0.4-Beta
 // @description 吉林大学鼎新图书馆自动抢座
 // @author      anonymous
 // @run-at      document-end
@@ -13,7 +13,7 @@
 /* ---------------- configuration ----------------- */
 
 const RESV_URL = 'http://libzwyy.jlu.edu.cn/ic-web/reserve';
-const REQUEST_LIMIT = 100; /* 别瞎改，请求量太大会造成服务器宕机，100已经很高了 */
+const REQUEST_LIMIT = 100; // 别瞎改，请求量太大会造成服务器宕机，100已经很高了
 const COUNT_DOWN_INTERVAL =100;
 const SEAT_ID_BASE = {
     '2B': 100652811,
@@ -25,12 +25,10 @@ const SEAT_ID_BASE = {
     '5B': 100654024,
 };
 const DEFAULT_TIMING_CONTROL = {
-    hit: 2,
     interval: 100,
     timeout: 1,
 };
 const DEFAULT_POLLING_CONTROL = {
-    hit: 1,
     interval: 1000,
     timeout: 30,
 };
@@ -40,7 +38,7 @@ const DEFAULT_CONFIG = {
     beginTime: '07:00',
     endTime: '22:00',
     mode: 'timing', // 'timing' | 'polling'
-    aheadTime: 30,
+    aheadTime: 5,
     targetTime: '21:00',
     ...DEFAULT_TIMING_CONTROL,
 };
@@ -111,15 +109,11 @@ const html = `
 <!-- mode section -->
 <div id="mode-wrapper" class="wrapper">
   <div class="flex-container flex-item">
-    <label class="flex-item" for="i-mode"> 模式： </label>
+    <label for="i-mode"> 模式： </label>
     <select class="flex-item" id="i-mode">
       <option value="timing" ${config.mode == 'timing' ? 'selected' : ''}>定时抢座</option>
       <option value="polling" ${config.mode == 'polling' ? 'selected' : ''}>轮询捡漏</option>
     </select>
-  </div>
-  <div class="flex-container flex-item">
-    <label class="flex-item" for="i-aheadTime">提前(s)：</label>
-    <input class="flex-item" type="number" id="i-aheadTime" value="${config.aheadTime}" ${config.mode != 'timing' ? 'disabled' : ''} />
   </div>
   <div class="flex-container flex-item">
     <label class="flex-item" for="i-targetTime">定时目标：</label>
@@ -131,14 +125,15 @@ const html = `
       ${config.mode != 'timing' ? 'disabled' : ''}
     />
   </div>
+  <div class="flex-container flex-item">
+    <label class="flex-item" for="i-aheadTime">提前(s)：</label>
+    <input class="flex-item" type="number" id="i-aheadTime" value="${config.aheadTime}" ${config.mode != 'timing' ? 'disabled' : ''} />
+  </div>
 </div>
 
 <!-- control section -->
 <div id="control-wrapper" class="wrapper">
-  <div class="flex-container flex-item">
-    <label class="flex-item" for="i-hit"> 连击： </label>
-    <input class="flex-item" type="number" id="i-hit" value="${config.hit}" min="1" step="1" />
-  </div>
+  <div class="flex-container flex-item"></div>
   <div class="flex-container flex-item">
     <label class="flex-item" for="i-interval"> 间隔(ms)： </label>
     <input class="flex-item" type="number" id="i-interval" value="${config.interval}" min="1" step="1" />
@@ -163,19 +158,17 @@ const html = `
   <p> - 请使用最新版Edge/Chrome浏览器，快捷键‘Ctrl+空格’显示/隐藏界面</p>
   <p> - 最好可以关闭电脑上其他程序/浏览器标签页，插上电源并打开电脑高性能模式</p>
   <p> - 两种模式：‘定时抢座’在‘定时目标’的前‘提前’秒开始请求，‘轮询捡漏’直接开始</p>
-  <p> - 请求逻辑：每‘间隔’毫秒执行‘连击’次发送，每次发送对所选座位依次请求1次</p>
-  <p> - 保持‘连击’是一个较小的数字。请求共持续‘超时’分钟，若超时后仍未抢到则停止尝试</p>
-  <p> - 目前(2022.11)服务器时间比标准时间快18秒左右，建议‘提前’设置为20~30</p>
+  <p> - 请求逻辑：每‘间隔’毫秒对所选的所有座位依次发送预约请求1次，共持续‘超时’分钟</p>
   <p> - 座位支持两种写法：单独一个例如2B001，一个范围例如3A001-100，升降序均可</p>
   <p> - 座位字符串可以写多个，不同的字符串之间用空格或回车隔开，大小写不敏感</p>
   <p> - 你需要自行检查某座位号是否存在/开放，否则发送无效请求成功率会降低，注意座位号不一定连续</p>
-  <p> - 卡点抢第二天座位时最好定时抢，成功率更高，别提前好多分钟就开始轮询，没必要</p>
-  <p> - 定时卡点抢时‘座位数’*‘连击’保持在5以下，‘间隔’可以设为200/100，抢某一个或几个座位</p>
-  <p> - 轮询捡漏时‘座位’设多些，‘间隔’长一点，‘连击’设为1即可，例如200个座位每1s/2s请求1次</p>
+  <p> - 卡点抢第二天座位时定时抢就行，成功率更高，别提前好多分钟就开始轮询，徒增服务器负载</p>
+  <p> - 定时抢座时‘座位’设少些，抢某一个或几个座位，‘间隔’可以设为100/50</p>
+  <p> - 轮询捡漏时‘座位’设多些，‘间隔’长一点，例如100个座位每1s/2s请求1次</p>
   <p> - 请求频率别太高(例如超过100/s)，浏览器对请求队列有一定资源限制，资源不足后请求会失败</p>
-  <p> - 过多过快的请求可能造成服务器宕机，同时用脚本的人过多性质可能就变成DDoS攻击了</p>
-  <p> - 如果不是特别需要，最好别捡漏那些大半夜换时间的人的座位，做事不要太过分</p>
+  <p> - 主要是过多过快的请求可能造成服务器宕机，同时用脚本的人过多性质可能就变成DDoS攻击了</p>
   <p> - 偷摸用，把握好分寸，别给服务器造成太大压力，用的人越少成功率越高，也越不容易被学校发现</p>
+  <p> - 如果不是特别需要，最好别捡漏那些大半夜换时间的人的座位，大家都是考研人，不要做得太过分</p>
   <p> - 切勿传播本脚本，切勿用售卖、代抢等方式牟利，否则可能涉嫌刑法‘破坏计算机信息系统罪’</p>
   <p>免责声明：</p>
   <p> - 本脚本仅供个人学习研究之用，不使用任何破坏计算机信息系统的技术，不修改任何数据</p>
@@ -359,9 +352,9 @@ document.body.appendChild(container);
 
 const select = (id) => container.querySelector(`#${id}`);
 const grabber = select('grabber');
-const allConfigElements = ['i-seats', 'i-date', 'i-beginTime', 'i-endTime', 'i-mode', 'i-aheadTime', 'i-targetTime', 'i-hit', 'i-interval', 'i-timeout'].map(select);
+const allConfigElements = ['i-seats', 'i-date', 'i-beginTime', 'i-endTime', 'i-mode', 'i-aheadTime', 'i-targetTime', 'i-interval', 'i-timeout'].map(select);
 const timingConfigElements = ['i-aheadTime', 'i-targetTime'].map(select);
-const [elHit, elInterval, elTimeout] = ['i-hit', 'i-interval', 'i-timeout'].map(select);
+const [elInterval, elTimeout] = ['i-interval', 'i-timeout'].map(select);
 const [elIndicator, elManual] = ['indicator', 'manual'].map(select);
 const [btnOperate, btnHelp, btnDrag] = ['operate-btn', 'meta-btn-help', 'meta-btn-drag'].map(select);
 
@@ -422,18 +415,17 @@ function handleInputChange(evt) {
         case 'i-beginTime': config.beginTime = val; break;
         case 'i-endTime': config.endTime = val; break;
         case 'i-mode': {
-            config.mode = val;
             timingConfigElements.forEach(el => el.disabled = val == 'timing' ? false : true);
-            const { hit, interval, timeout } = val == 'timing' ? DEFAULT_TIMING_CONTROL : DEFAULT_POLLING_CONTROL;
-            [config.hit, config.interval, config.timeout] = [hit, interval, timeout];
-            [elHit.value, elInterval.value, elTimeout.value] = [hit, interval, timeout];
+            const { interval, timeout } = val == 'timing' ? DEFAULT_TIMING_CONTROL : DEFAULT_POLLING_CONTROL;
+            config.interval = elInterval.value = interval;
+            config.timeout = elTimeout.value = timeout;
+            config.mode = val;
             break;
         }
-        case 'i-aheadTime': config.aheadTime = parseFloat(val); break;
         case 'i-targetTime': config.targetTime = val; break;
-        case 'i-hit': config.hit = parseInt(val); break;
-        case 'i-interval': config.interval = parseFloat(val); break;
-        case 'i-timeout': config.timeout = parseFloat(val); break;
+        case 'i-aheadTime': config.aheadTime = parseInt(val); break;
+        case 'i-interval': config.interval = parseInt(val); break;
+        case 'i-timeout': config.timeout = parseInt(val); break;
         default: throw 'unreachable';
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
@@ -510,7 +502,6 @@ function makeGrabberDragable() {
 
 function updateUI() {
     elIndicator.className = state.status;
-
     const operating = state.status != 'idle' && state.status != 'erroring';
     if (operating) {
         allConfigElements.forEach(el => el.disabled = true);
@@ -524,7 +515,6 @@ function updateUI() {
         btnOperate.removeEventListener('click', handleCancel);
         btnOperate.addEventListener('click', handleOperate);
     }
-
     switch (state.status) {
         case 'idle': {
             elIndicator.innerHTML = ``;
@@ -573,7 +563,6 @@ function updateResquestCountUI() {
 
 function validate() {
     const errors = [];
-
     let result;
     result = checkUserLogin();
     switch (result.type) {
@@ -590,7 +579,6 @@ function validate() {
         case 'Ok': break;
         case 'Err': errors.push(...result.error); break;
     }
-
     return errors.length  > 0 ? Err(errors) : Ok();
 }
 
@@ -604,13 +592,13 @@ function checkConfig() {
     const errors = [];
     if (config.seats.trim() == '') errors.push('未指定座位号');
     for (const [k, v] of Object.entries(config)) {
-        if (k != 'seats' && v !== 0 && !v) errors.push(`配置项 ${k} 不能为空`);
+        if (k != 'seats' && !v) errors.push(`配置项 ${k} 不能为空`);
     }
-    const [hit, interval, seatCount] = [config.hit, config.interval, state.targetSeats.length];
-    if (hit && interval && seatCount) {
-        const freq = Math.ceil((1000 / interval) * hit * seatCount);
+    const interval = config.interval, seatCount = state.targetSeats.length;
+    if (interval && seatCount) {
+        const freq = Math.ceil((1000 / interval) * seatCount);
         if (freq > REQUEST_LIMIT) {
-            errors.push(`请求频率最好别超过 ${REQUEST_LIMIT} , 当前为 1000 / ${interval} * ${hit} * ${seatCount} = ${freq}`);
+            errors.push(`请求频率最好别超过 ${REQUEST_LIMIT} , 当前为 1000 / ${interval} * ${seatCount} = ${freq}`);
         }
     }
     return errors.length > 0 ? Err(errors) : Ok();
@@ -655,7 +643,6 @@ function startRuning() {
 
 function timingGrab() {
     state.status = 'waiting';
-    state.countDown = '?';
     updateUI();
     const [h, m] = config.targetTime.split(':').map(s => parseInt(s));
     const target = new Date().setHours(h, m, 0, 0) - config.aheadTime * 1000;
@@ -692,15 +679,12 @@ function startGiveUpTimeout() {
 }
 
 function grab() {
-    const hit = config.hit, seats = state.targetSeats;
-    for (let i = 0; i < hit; i++) {
-        for (const seat of seats) {
-            payload.resvDev[0] = seat;
-            option.body = JSON.stringify(payload);
-            fetch(RESV_URL, option).then(parseResponse).then(checkFetchResult).catch(checkFetchError);
-        }
+    for (const seat of state.targetSeats) {
+        payload.resvDev[0] = seat;
+        option.body = JSON.stringify(payload);
+        fetch(RESV_URL, option).then(parseResponse).then(checkFetchResult).catch(checkFetchError);
     }
-    state.requestCount += seats.length * hit;
+    state.requestCount += state.targetSeats.length;
     updateResquestCountUI();
 }
 
